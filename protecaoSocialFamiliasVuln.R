@@ -1,90 +1,99 @@
 library(tidyverse)
-library(stringr)
 library(reshape2)
 library(openxlsx)
 library(lubridate)
 library(RColorBrewer)
+library(knitr)
 
 
-setwd("C:/Users/MAGNA TI/OneDrive - HERKENHOFF & PRATES")
-
-base <- read.xlsx("ExtracaoPessoas20201103.xlsx")
-
-base[base=="[NA]"] <- NA
-base[base=="NULL"] <- NA
-
-base <- base[, c(1, 4:15, 18, 20, 95)]
-
-base$DATA_ENTREVISTA <- as.Date(base$DATA_ENTREVISTA, origin = "1899-12-30")
-
-base$Vulnerável_Considerado[base$Vulnerável_Considerado==0] <- "Não"
-
-base$SM <- ifelse(base$DATA_ENTREVISTA < "2016-01-01", 788,
-                  ifelse(base$DATA_ENTREVISTA >= "2016-01-01" &  base$DATA_ENTREVISTA < "2017-01-01", 880,
-                         ifelse(base$DATA_ENTREVISTA >= "2017-01-01" & base$DATA_ENTREVISTA < "2018-01-01", 937,
-                                ifelse(base$DATA_ENTREVISTA >= "2018-01-01" & base$DATA_ENTREVISTA < "2019-01-01", 954, 998))))
-
-base$vulnSM <- ifelse(base$FAM_Renda_PerCapita_Entrevista <= base$SM/2, "Sim", "Não")
+options(scipen = 999999999) # desativa notação científica
 
 
-base$vulneravel <- ifelse(((base$IDADE_ENTREVISTA >= 60 | base$IDADE_ENTREVISTA < 18) |
-                                base$`POSSUI.ALGUMA.DEFICIÊNCIA?` == "Sim" |
-                                base$vulnSM == "Sim"), "Sim", "Não")
-
-base$grupoEtario <- ifelse(base$IDADE_ENTREVISTA < 12, "Criança",
-                           ifelse(base$IDADE_ENTREVISTA >= 12 & base$IDADE_ENTREVISTA <18, "Adolescente",
-                                  ifelse(base$IDADE_ENTREVISTA >= 18 & base$IDADE_ENTREVISTA < 60, "Adulto", "Idoso")))
-
-base$jovem <- ifelse(base$IDADE_ENTREVISTA >= 18 & base$IDADE_ENTREVISTA <= 29 , "Jovem", "Não jovem")
+setwd("C:/Users/Claudio/HERKENHOFF & PRATES/OneDrive - HERKENHOFF & PRATES/ProteçãoSocial/BDs")
+pessoas <- read.xlsx("BDPessoas2020.xlsx", cols = c(1:6, 11, 22, 44, 124, 128, 132, 136, 140, 144, 161, 163, 165, 168))
+pessoas[pessoas=="[NA]"] <- NA
 
 
-familias <- base %>% 
-     group_by(ID_SGC, vulneravel) %>% 
-     summarise(n = n()) %>% 
-     pivot_wider(names_from = vulneravel, values_from = n)
+# Recofica variáveis de renda para numéricas (substitui pontos por vazio e vírgulas por pontos)
+pessoas$`2.2.79` <- as.numeric(str_replace_all(pessoas$`2.2.79`, c("\\." = "",
+                                                                   "," = "\\.")))
 
-familias[is.na(familias)] <- 0
+pessoas$`2.2.83` <- as.numeric(str_replace_all(pessoas$`2.2.83`, c("\\." = "",
+                                                                   "," = "\\.")))
 
-familias$Não <- NULL
-familias$Sim[familias$Sim >0] <- 1
-familias <- rename(familias, vulneravel = Sim)
+pessoas$`2.2.87` <- as.numeric(str_replace_all(pessoas$`2.2.87`, c("\\." = "",
+                                                                   "," = "\\.")))
 
-familiasRenda <- base %>% 
-     group_by(ID_SGC, vulnSM) %>% 
-     summarise(n = n()) %>% 
-     pivot_wider(names_from = vulnSM, values_from = n)
+pessoas$`2.2.91` <- as.numeric(str_replace_all(pessoas$`2.2.91`, c("\\." = "",
+                                                                   "," = "\\.")))
 
-familiasRenda[is.na(familiasRenda)] <- 0
+pessoas$`2.2.95` <- as.numeric(str_replace_all(pessoas$`2.2.95`, c("\\." = "",
+                                                                   "," = "\\.")))
 
-colnames(familiasRenda) = c("ID_SGC",
-                            "Vulneravel",
-                            "NaoVulneravel")
+pessoas$`2.2.99` <- as.numeric(str_replace_all(pessoas$`2.2.99`, c("\\." = "",
+                                                                   "," = "\\.")))
 
+pessoas$`2.2.109` <- as.numeric(str_replace_all(pessoas$`2.2.109`, c("\\." = "",
+                                                                   "," = "\\.")))
 
-familiasDef <- base %>% 
-     group_by(ID_SGC, `POSSUI.ALGUMA.DEFICIÊNCIA?`) %>%
-     summarise(n = n()) %>% 
-     pivot_wider(names_from = `POSSUI.ALGUMA.DEFICIÊNCIA?`, values_from = n)
+pessoas$`2.2.111` <- as.numeric(str_replace_all(pessoas$`2.2.111`, c("\\." = "",
+                                                                     "," = "\\.")))
 
-familiasDef[is.na(familiasDef)] <- 0
+pessoas$`2.2.113` <- as.numeric(str_replace_all(pessoas$`2.2.113`, c("\\." = "",
+                                                                     "," = "\\.")))
 
-colnames(familiasDef) = c("ID_SGC",
-                          "PessoasDeficienca",
-                          "PessoasNaoDeficienca",
-                          "PessoasNaoRespondeu",
-                          "PessoasNaoSabe")
+pessoas$`2.2.116` <- as.numeric(str_replace_all(pessoas$`2.2.116`, c("\\." = "",
+                                                                     "," = "\\.")))
 
 
-familias <- merge(familias, familiasDef, by = "ID_SGC")
-familias <- merge(familias, familiasRenda, by = "ID_SGC")
+# Variáveis de data
+pessoas$`2.2.10.1.a` <- as.Date(pessoas$`2.2.10.1.a`, tryFormats = "%d/%m/%Y")
+pessoas$C3 <- as.Date(pessoas$C3, origin = "1899-12-30")
 
-familias <- familias[c("ID_SGC",
-                       "Adulto",
-                       "Adolescente",
-                       "Criança",
-                       "Idoso",
-                       "PessoasDeficienca",
-                       "Vulneravel")]
+
+# Cria variável idade (considerar a data da entrevista (C3) ou uma data mais atual)
+pessoas <- add_column(pessoas, "idade" = as.numeric(""), .after = "2.2.10.1.a")
+pessoas$idade <- trunc(time_length(interval(ymd(pessoas$`2.2.10.1.a`), ymd("2020-03-31")), "year"))
+
+
+# Cria variável de público vulnerável (crinças, adolescentes ou idosos)
+pessoas <- add_column(pessoas, "publicoVulneravel" = as.numeric(""), .after = "idade")
+pessoas$publicoVulneravel <- ifelse(pessoas$idade < 12, 1,
+                                       ifelse(pessoas$idade >= 12 & pessoas$idade < 18, 1,
+                                              ifelse(pessoas$idade >=60, 1, 0)))
+
+
+# Cria variável de salário minimo (com valores de cada ano)
+pessoas <- add_column(pessoas, "SM" = as.numeric(""), .after = "2.2.32")
+pessoas$SM <- ifelse(pessoas$C3 < "2016-01-01", 788,
+                  ifelse(pessoas$C3 >= "2016-01-01" &  pessoas$C3 < "2017-01-01", 880,
+                         ifelse(pessoas$C3 >= "2017-01-01" & pessoas$C3 < "2018-01-01", 937,
+                                ifelse(pessoas$C3 >= "2018-01-01" & pessoas$C3 < "2019-01-01", 954, 998))))
+
+
+# Deficiência
+pessoas$`2.2.32` <- ifelse(pessoas$`2.2.32` == "Sim", 1, 0)
+
+
+# Cria base de famílias com as variáveis
+familias <- 
+     pessoas %>% 
+     mutate(SM = SM/2) %>% 
+     group_by(ID_SGC) %>% 
+     summarise(RendaTotal = sum(`2.2.79`, `2.2.83`,`2.2.87`, `2.2.91`, `2.2.95`, `2.2.99`, na.rm = TRUE),
+               Npessoas = n(),
+               PerCapita = RendaTotal/Npessoas,
+               SM_Entrevista = max(SM),
+               RendaSM = round(PerCapita/SM_Entrevista, digits = 1),
+               PessoasVulneraveis = sum(publicoVulneravel, na.rm = TRUE),
+               PessoasDeficiencia = sum(`2.2.32`, na.rm = TRUE)) %>% 
+     mutate(BaixaRenda = ifelse(RendaSM <= 0.5, 1, 0)) %>% 
+     mutate(FamiliaVulneravel = ifelse(BaixaRenda == 1 & (PessoasVulneraveis > 0 | PessoasDeficiencia > 0), 1, 0))
+     
+
+familias %>% summarise(N = sum(FamiliaVulneravel)) # conta o número de famílias vulneráveis
+
+
 
 setwd("C:/Users/MAGNA TI/OneDrive - HERKENHOFF & PRATES/FundRenova/ProteçãoSocial")
 write.xlsx(list(familias = familias,
