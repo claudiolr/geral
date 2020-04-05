@@ -1,0 +1,259 @@
+---
+title: "Teste para vaga de Cientista de Dados"
+author: "Claudio Lobenwein Resende"
+date: "05/03/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(RColorBrewer)
+library(MASS)
+library(foreign)
+library(knitr)
+
+
+# Informarções do pacote RColorBrewer -------------------------------------
+RColorBrewer::display.brewer.all()
+brewer.pal.info
+
+
+# Escala Likert -----------------------------------------------------------
+legConcordancia <- c("Discorda muito","Discorda",
+                     paste("Não discorda","\n","nem concorda"),
+                     "Concorda","Concorda muito")
+legFrequencia <- c("Nunca","Quase nunca","Às vezes","Quase sempre","Sempre")
+
+
+# Tratamento da base ------------------------------------------------------
+setwd("~/GitHub/geral")
+base <- read.csv("wiki4HE.csv", sep=";")
+
+### Transforma variáveis categóricas (factor) em numéricas
+base$YEARSEXP <- as.numeric(base$YEARSEXP)
+
+# Transforma variável dependente em binária -------------------------------
+base$ENJ1Recod <- as.factor(ifelse(is.na(base$ENJ1), NA,
+                                   ifelse(base$ENJ1 %in% (1:3), 0, 1)))
+
+base$ENJ2Recod <- as.factor(ifelse(is.na(base$ENJ2), NA,
+                                   ifelse(base$ENJ2 %in% (1:3), 0, 1)))
+
+```
+
+# Uso da Wikipedia como recurso de ensino
+
+O texto a seguie apresenta análises descritivas e preditivas acerca da percepção de professores universitário quanto ao uso da Wikipedia como recurso de ensino. A pesquisa foi desenvolvida por professores da Universitat Oberta de Catalunya, Barcelona, Espanha. A base foi baixada no endereço http://archive.ics.uci.edu/ml/datasets/wiki4HE.
+
+O texto a seguir apresenta uma análise de dados sobre a percepção de professores universitários acerca do uso da plataforma Wikipedia como ferramenta de ensino. Foram entrevistados 913 professores de diferentes áreas de ensino, idades e experiência acadêmica, formação (possui ou não doutorado), bem como se são usuários registrados da plataforma Wikipedia ou não.
+
+A análise a seguir está centrada nas características básicas dos professores e na relação entre essas características e a percepção sobre a satisfação com o uso da plataforma como ferramenta de ensino (perceived enjoyment). A pergunta que se quer responder é se essa percepção muda de acordo com os diferentes perfis de docentes, como gênero, idade, tempo de experiência acadêmica e área de ensino. Para isso, é necessário compreender o perfil dos professores.
+
+Os dois gráficos a seguir apresentam a distribuição dos professores pesquisados quanto ao gênero e quanto ao perfil de uso da plataforma (usuários e não-usuários). O que se percebe quanto ao gênero é que a distribuição é relativamente equitativa (57,5% de homens e 42,5% de mulheres). Uma análise dessa variável com as demais variáveis descritivas do público pesquisado não apresentou resultados relevantes.
+
+
+
+```{r, echo=FALSE, eval=TRUE}
+
+ggplot(base, aes(x = as.factor(GENDER), fill=as.factor(GENDER))) + 
+     geom_bar() + 
+     labs(title = "Gênero dos professores entrevistados",
+          x = "", y = NULL, size = 8) + 
+     scale_fill_manual(values = c("#F57F17", "#BF360C"), labels = c("Masculino","Feminino")) +
+     geom_text(aes(label=..count..), stat = "count", position=position_stack(0.9), color = "black", size = 5) +
+     theme(legend.title = element_blank(), plot.title = element_text(hjust = 0.5, size = 15),
+           legend.text = element_text(size = 9), axis.text.x = element_text(size = 11)) +
+     scale_x_discrete(labels = NULL)
+
+
+# Perfil de uso
+base %>% 
+        mutate(DOMAIN = factor(DOMAIN, levels = c("1","2","3","4","5","6")),
+               USERWIKI = factor(USERWIKI, levels = c("0", "1")),
+               ENJ1 = factor(ENJ1, levels = c("1","2","3","4","5")),
+               ENJ2 = factor(ENJ2, levels = c("1","2","3","4","5"))) %>% 
+        filter(!is.na(USERWIKI)) %>% 
+        ggplot(aes(x = as.factor(USERWIKI), fill = as.factor(USERWIKI))) + 
+        geom_bar(na.rm = TRUE) + 
+        labs(title = "Perfil de uso da Wikipedia",
+             x = "", y = NULL) + 
+        scale_fill_manual(values = c("#2C3E50", "#16A085"), labels = c("Não usuário","Usuário")) +
+        geom_text(aes(label=..count..),
+                  stat = "count",
+                  position = position_stack(),
+                  color = "black",
+                  size = 5,
+                  vjust = -0.2) +
+        theme(legend.title = element_blank(), plot.title = element_text(hjust = 0.5, size = 20),
+              legend.text = element_text(size = 12), axis.text.x = element_text(size = 14),
+              legend.position = "bottom") +
+        scale_x_discrete(labels = NULL)
+
+```
+
+Entre os pesquisados, apenas 13,7% se disseram usuários registrados da Wikipedia, ao passo que 85,9% disseram não ser usuários. Esses números são por si um resultado relevante, tendo em vista que a forma de uso da plataforma pode afetar a visão que as pessoas têm em relação ao seu uso como ferramenta complementar de ensino, como será visto mais à frente.
+
+Em relação à idade, é interessante observar que os dados possuem uma distribuição próxima a uma distribuição normal, em que os valores estão concentrados em torno da média. Ainda, em uma distribuição normal, a mediana e a moda possuem o mesmo valor da média. Nos dados de idade analisados, esses três valores se aproximam, sendo a média igual 42,25, a mediana igual a 42 e a moda igual a 43.
+
+
+```{r echo=FALSE, eval=TRUE}
+ggplot(data = base, mapping = aes(x = AGE, fill = as.factor(GENDER))) +
+     geom_bar() +
+     labs(title = "Idade dos professores entrevistados, por gênero",
+          x = "Idade", y = NULL) +
+     theme(legend.title = element_blank(), plot.title = element_text(hjust = 0.5, size = 20),
+           legend.text = element_text(size = 12), axis.text.x = element_text(size = 14),
+           legend.position = "bottom") +
+     scale_fill_manual(values = c("#F57F17", "#BF360C"), labels = c("Masculino","Feminino"))
+
+summary(base$AGE)
+
+```
+
+
+
+
+
+```{r echo=FALSE, eval=TRUE}
+# Área de atuação
+base %>%
+        mutate(DOMAIN = factor(DOMAIN, levels = c("1","2","3","4","5","6"))) %>% 
+        filter(!is.na(DOMAIN)) %>% 
+        ggplot(aes(x = DOMAIN, fill = as.factor(DOMAIN))) +
+        geom_bar(stat = "count", position = "dodge", na.rm = TRUE) +
+        geom_text(aes(label = ..count..),
+                  stat = "count",
+                  position = position_stack(),
+                  vjust = -0.3,
+                  color = "black",
+                  size = 4) +
+        labs(title = "Área de atuação dos professores",
+             x = "Área", y = NULL) +
+        theme(legend.title = element_blank(), plot.title = element_text(hjust = 0.5, size = 20),
+              legend.text = element_text(size = 12), axis.text.x = element_text(size = 14),
+              legend.position = "bottom", legend.text.align = 0) +
+        scale_fill_manual(values = c("#004D40","#00695C","#00796B","#00897B","#2980B9","#3498DB"),
+                          labels = c("Artes & Humanidades", "Ciências",
+                                     "Ciências da Saúde", "Engenharia & Arquitetura","Direito & Política", "Outra"))+
+        scale_x_discrete(labels = NULL)
+
+
+
+
+```
+
+
+
+## Satisfação percebida (perceived enjoyness)
+Os professores pesquisados responderam a 43 afirmações, distribuídas entre 13 grupos, sobre o uso da Wikipedia como ferramenta de ensino. As afirmações deveriam ser respondidas em uma escala de Likert de 1 a 5, em que 1 significa “discorda muito” e 5 significa “concorda muito”.  A análise de todas essas perguntas foge ao escopo desse texto, mas é importante destacar que o conjunto de perguntas deve ser analisado como um todo, tendo em vista se tratar de perguntas que se relacionam e que podem fornecer uma visão mais detalhada dos resultados.
+
+A análise aqui se concentra na __satisfação percebida__ (perceived enjoyness), composto por _duas perguntas_:
+ * o uso da Wikipedia estimula a curiosidade; e
+ * o uso da Wikipedia é divertido (entertaining)
+
+A primeira pergunta (ENJ1) possui uma média igual a 3,79, considerando-se os valores da escala de Likert. A pergunta ENJ2 possui a média igual 3,82. Ou seja, em geral, os professores tendem a concordar com as afirmações sobre a satisfação com uso da Wikipedia, mas possuem alguma relutância quanto ao seu uso.
+
+
+```{r echo=FALSE, eval=TRUE}
+# Usuário
+base %>%
+        mutate(DOMAIN = factor(DOMAIN, levels = c("1","2","3","4","5","6")),
+               USERWIKI = factor(USERWIKI, levels = c("0", "1")),
+               ENJ1 = factor(ENJ1, levels = c("1","2","3","4","5")),
+               ENJ2 = factor(ENJ2, levels = c("1","2","3","4","5"))) %>% 
+        filter(!is.na(USERWIKI) & !is.na(ENJ1)) %>% 
+        ggplot(mapping = aes(x = ENJ1, fill = USERWIKI)) +
+        geom_bar(na.rm = TRUE) +
+        labs(title = "O uso da Wikipedia estimula a curiosidade",
+             x = NULL, y = "Frequência") +
+        theme(legend.title = element_blank(), plot.title = element_text(hjust = 0.5, size = 20),
+              legend.text = element_text(size = 12), axis.text.x = element_text(size = 14),
+              legend.position = "bottom", legend.text.align = 0) +
+        scale_fill_manual(values = c("#2C3E50", "#16A085"), labels = c("Não usuário","Usuário"))
+
+base %>%
+        mutate(DOMAIN = factor(DOMAIN, levels = c("1","2","3","4","5","6")),
+               USERWIKI = factor(USERWIKI, levels = c("0", "1")),
+               ENJ1 = factor(ENJ1, levels = c("1","2","3","4","5")),
+               ENJ2 = factor(ENJ2, levels = c("1","2","3","4","5"))) %>% 
+        filter(!is.na(USERWIKI) & !is.na(ENJ2)) %>% 
+        ggplot(mapping = aes(x = ENJ2, fill = as.factor(USERWIKI))) +
+        geom_bar(na.rm = TRUE) +
+        labs(title = "O uso da Wikipedia é divertido",
+             x = NULL, y = "Frequência") +
+        theme(legend.title = element_blank(), plot.title = element_text(hjust = 0.5, size = 20),
+              legend.text = element_text(size = 12), axis.text.x = element_text(size = 14),
+              legend.position = "bottom", legend.text.align = 0) +
+        scale_fill_manual(values = c("#2C3E50", "#16A085"), labels = c("Não usuário","Usuário"))
+
+```
+
+Quando essas afirmações são analisadas considerando-se o perfil de uso (usuário e não usuário), percebe-se uma tendência maior de concordância entre os professores que são usuários registrados.
+
+```{r echo=FALSE, eval=TRUE}
+# Área de atuação
+base %>% 
+        mutate(DOMAIN = factor(DOMAIN, levels = c("1","2","3","4","5","6")),
+               USERWIKI = factor(USERWIKI, levels = c("0", "1")),
+               ENJ1 = factor(ENJ1, levels = c("1","2","3","4","5")),
+               ENJ2 = factor(ENJ2, levels = c("1","2","3","4","5"))) %>% 
+        filter(!is.na(DOMAIN) & !is.na(ENJ1)) %>% 
+        ggplot(aes(x = ENJ1, fill = as.factor(DOMAIN))) +
+        geom_bar(na.rm = TRUE) +
+        labs(title = "O uso da Wikipedia\nestimula a curiosidade",
+             x = "Escala (1 a 5)", y = "Frequência") +
+        scale_fill_brewer(palette = "Reds",
+                          labels = c("Artes & Humanidades", "Ciências",
+                                     "Ciências da Saúde", "Engenharia & Arquitetura","Direito & Política", "Outra")) +
+        theme(legend.title = element_blank(), plot.title = element_text(hjust = 0.5, size = 20),
+              legend.text = element_text(size = 12), axis.text.x = element_text(size = 14),
+              legend.position = "bottom", legend.text.align = 0)
+
+base %>%
+        mutate(DOMAIN = factor(DOMAIN, levels = c("1","2","3","4","5","6")),
+               USERWIKI = factor(USERWIKI, levels = c("0", "1")),
+               ENJ1 = factor(ENJ1, levels = c("1","2","3","4","5")),
+               ENJ2 = factor(ENJ2, levels = c("1","2","3","4","5"))) %>% 
+        filter(!is.na(DOMAIN) & !is.na(ENJ2)) %>% 
+        ggplot(aes(x = ENJ2, fill = as.factor(DOMAIN))) +
+        geom_bar(na.rm = TRUE) +
+        labs(title = "O uso da Wikipedia \n é divertido",
+             x = "Escala (1 a 5)", y = "Frequência") +
+        scale_fill_brewer(palette = "Reds",
+                          labels = c("Artes & Humanidades", "Ciências",
+                                     "Ciências da Saúde", "Engenharia & Arquitetura","Direito & Política", "Outra")) +
+        theme(legend.title = element_blank(), plot.title = element_text(hjust = 0.5, size = 20),
+              legend.text = element_text(size = 12), axis.text.x = element_text(size = 14),
+              legend.position = "bottom", legend.text.align = 0)
+
+
+
+
+```
+
+
+```{r echo=FALSE, eval=TRUE}
+### Análise estatísticas
+
+modelo1 = glm(base$ENJ1Recod ~ base$AGE + base$GENDER + base$DOMAIN + base$PhD + base$YEARSEXP + base$UNIVERSITY + base$UOC_POSITION,
+               family = binomial(link = "logit"))
+
+summary(modelo1)
+
+
+modelo2 = glm(base$ENJ1Recod ~ base$AGE + base$DOMAIN, family = binomial(link = "logit"))
+summary(modelo2)
+# -0.030620. Exp = 0.969844: cada ano a mais de idade do professor reduz em 3% a chance de ele concordar com a variável ENJ1
+# 1.037115. Exp = 2.821066: ser da área de ciências aumenta 182% a chance de o professor concordar com a pergunta ENJ1
+# y = 1.990016 - 0.030620 + 1.037115(DOMAIN==2)
+# Uma pessoa de Ciências com 45 anos de idade:
+# y = 1.990016 - 0.030620(45) + 1.037115 = 1.649231
+# Probabilidade = exp(1.649231)/1 + exp(1.649231) = 0.8387871
+# Essa pessoa tem 83% de chance de concordar com a variável ENJ1
+```
+Ainda assim, o fato de haver professores usuários da plataforma que não concordam com a afirmação torna a relação fraca, sendo incorreto dizer que há uma diferença significativa entre esses dois grupos. O mesmo ocorre quando a análise é feita por áreas de atuação (domain): as respostas se distribuem de modo semelhante às distribuições das áreas de atuação, de forma que não é possível afirmar que há diferença de percepção entre os professores de diferentes áreas.
+
+Para aprimorar a análise, foi realizada uma análise de regressão linear para medir a capacidade de explicação da variável de perfil de usuário. Para isso, foi criado um Índice de Percepção de Satisfação (ENJ) a partir das respostas das afirmações ENJ1 e ENJ2, por meio de uma média. A variável resultante, embora tenha valores que se aproximem dos valores da escala Likert, pode ser considerada contínua.
+
