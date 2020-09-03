@@ -5,9 +5,9 @@
 
 # For()
 
-for(i in dashboard$numeroTentativa)
+for(i in pessoas$`2.2.9`)
 {
-     print(dashboard$numeroTentativa[i])
+     print(pessoas$`2.2.9`[i])
 }
 
 

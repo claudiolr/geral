@@ -1,0 +1,74 @@
+---
+title: "processoSeletivoTake.rmd"
+author: "Claudio Resende"
+date: "01/09/2020"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+require(tidyverse)
+require(openxlsx)
+require(lubridate)
+require(janitor)
+
+
+tema <- function(){
+        theme(text = element_text(family = "Open Sans", colour = "gray40"),
+              plot.title = element_text(size = 12,
+                                        hjust = 0.5),
+              plot.subtitle = element_text(size = 10,
+                                           hjust = 0.5)
+        )
+}
+
+
+# Carrega e trata a base
+consolidado <- read.xlsx("C:/Users/Claudio/OneDrive/ProcSeletivoTake/Indicadores de Atendimento.xlsx",
+                         sheet = "CONSOLIDADO")
+
+colnames(consolidado) <- c("mes", "agente", "tickets.solved", "first.reply.time",
+                           "full.resolution.time", "tickets.dentro.SLA.first.reply",
+                           "tickets.dentro.SLA.full.reply", "satisfaction.score", "one.touch.tickets",
+                           "tickets.reopened", "requester.wait.time", "agent.wait.time", "first.resolution.time",
+                           "replies", "replies.avg", "tickets.updates")
+
+
+# Analistas -----------------------------------------------------------------------------------
+
+# Carrega e trata a base
+analistas <- read.xlsx("C:/Users/Claudio/OneDrive/ProcSeletivoTake/Indicadores de Atendimento.xlsx",
+                       sheet = "ANALISTAS")
+
+colnames(analistas) = c("mes", "agente", "tickets.solved", "first.reply.time",
+                        "full.resolution.time", "tickets.dentro.SLA.first.reply",
+                        "tickets.dentro.SLA.full.reply", "satisfaction.score", "one.touch.tickets",
+                        "tickets.reopened", "requester.wait.time", "agent.wait.time", "first.resolution.time",
+                        "replies", "replies.avg", "tickets.updates")
+
+
+analistas <- analistas %>% 
+        mutate(mes = as_date(mes, origin = "1899-12-30"),
+               mes = format(mes, "%m"))
+
+
+```
+Esse documento apresenta uma análise de desempenho de uma equipe de agentes no mês de novembro de 2019. A análise se baseia em um conjunto de indicadores do Zendesk e tem como ponto central o número de *tickets* resolvidos pelos agentes, de onde se propõem indicadores para avaliar o desempenho a partir de vários indicadores.  indicadores de atendimento ao cliente para um conjunto de agentes e referente a quatro meses com vistas a fornecer uma análise de desempenho da equipe, mais especificamente o desempenho no mês de novembro de 2019.
+
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
