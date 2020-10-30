@@ -1,0 +1,412 @@
+---
+title: "Teste de conhecimento Cinnecta"
+author: "Claudio Resende"
+date: "09/10/2020"
+output:
+  pdf_document: default
+  html_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+require(tidyverse)
+require(lubridate)
+require(data.table)
+require(corrplot)
+require(car)
+require(knitr)
+require(tinytex)
+
+
+# Carrega a base
+airbnb <- fread("C:/Users/Claudio/OneDrive/Documentos/ProcessosSeletivos/Cinnecta/airbnb.csv")
+
+
+# Personaliza o tema dos gráficos
+extrafont::loadfonts(device = "win", quiet = FALSE) # carrega fontes do windows
+
+cinza <- "#4d4d4d" # padroniza a cor dos textos dos gráficos
+
+
+# função para denifir padrões de tema dos gráficos do ggplot
+tema <- function(top = 3, right = 5, bottom = -3, left = 5, legenda = "none"){
+        theme(text = element_text(family = "Open Sans", colour = cinza),
+              plot.title = element_text(size = 12, family = "Open Sans SemiBold", hjust = 0.5),
+              plot.subtitle = element_text(size = 11, hjust = 0.5),
+              axis.ticks = element_blank(),
+              axis.title = element_text(colour = "gray40"),
+              axis.text = element_text(size = 10),
+              panel.grid.major.x = element_blank(),
+              panel.grid.minor.x =  element_blank(),
+              panel.grid.minor.y = element_blank(),
+              legend.position = legenda,
+              legend.margin = margin(-2,0,15,0),
+              legend.box.margin = margin(-5,-5,-5,-5),
+              plot.caption.position = "plot",
+              legend.text = element_text(size = 9),
+              plot.margin = margin(top, right, bottom, left))
+}
+
+
+# Seleção e transformação dos dados -----------------------------------------------------------
+
+# Seleciona as variáveis de interesse (exclui variáveis identificadoras e variáveis '_na')
+dados <- airbnb %>% 
+     select(-c(latitude, longitude, bedrooms_na:review_scores_value_na))
+
+
+# transforma variáveis 'boolean'
+dados <- dados %>% 
+        mutate(host_is_superhost = case_when(host_is_superhost == "t" ~ 1,
+                                             TRUE ~ 0),
+               instant_bookable = case_when(instant_bookable == "t" ~ 1,
+                                             TRUE ~ 0))
+
+colunasAirBnB = length(airbnb)
+linhasAirBnB = nrow(airbnb)
+colunasDados = length(dados)
+```
+
+# Introdução
+
+Este documento apresenta uma análise descritiva e preditiva de dados de acomodações do AirBnB. A base de dados fornecida contém `r colunasAirBnB` variáveis (colunas) e `r linhasAirBnB` observações (linhas).  
+
+Para a análise aqui realizada foram selecionadas `r colunasDados` colunas: foram excluídas colunas identificadoras da acomodação, como latitude e longitude, e as colunas *booleanas* relacionadas às avaliações (colunas '_na').  
+
+A primeira parte da análise consiste em explorar as variáveis para identificar eventuais padrões, tendências, vieses e outros tipos de comportamento dos dados que possam requerer transformações. Em seguida, são propostos modelos estatísticos para analisar a relação entre as variáveis.
+
+
+## Análise descritiva/exploratória
+
+A seguir as variáveis da base de dados são analisadas individualmente e, em seguinda, em combinação com uma ou duas outras variáveis.
+
+```{r, echo=FALSE}
+
+d1 <- dados %>% 
+        # transforma variável em categórica (factor)
+        mutate(host_is_superhost = as.factor(host_is_superhost)) %>%
+        count(host_is_superhost, name = 'N') %>% # conta valores
+        mutate(Prop = round(N/sum(N), digits = 3)*100)
+
+```
+
+
+
+#### Anfitrião
+O tipo de anfitrião é uma variável importante nos serviços oferecidos pelo AirBnB porque indicam o nível de experiência do anfitrião e a qualidade do serviço prestado. A base de dados analisada está distribuída em `r d1$Prop[1]`% e `r d1$Prop[2]`% para anfitriões comuns (host) e superanfitriões (superhost), respectivamente.
+
+```{r, echo=FALSE}
+
+dados %>% 
+        # transforma variável em categórica (factor)
+        mutate(host_is_superhost = as.factor(host_is_superhost)) %>%
+        count(host_is_superhost, name = 'N') %>% # conta valores
+        mutate(Prop = round(N/sum(N), digits = 3)*100) %>% # cria variável de %
+        # gráfico
+        ggplot(aes(x = host_is_superhost, y = Prop, fill = host_is_superhost, label = N)) +
+        geom_col(col = 'white') + # colunas contorno branco
+        # títulos
+        labs(title = "Anfitrião é superanfitrião?",
+             subtitle = "('superhost')",
+             x = "", y = "%") +
+        geom_text(aes(y = Prop), vjust = -0.2, colour = cinza) + # rótulos dos dados
+        scale_x_discrete(labels = c('Não', 'Sim')) + # rótulos das colunas
+        scale_fill_brewer(palette = 'Accent') + # padrão de cores
+        scale_y_continuous(breaks = seq(0, 100, 10), limits = c(0, 65)) + # intervalor do eixo y
+        tema(left = 5) +
+        theme(legend.position = 'none')
+
+```
+
+#### Políticas de cancelamento
+O tipo de política de cancelamento possui uma distribuição mais concentrada. O AirBnB oferece seis tipos de política para o anfitrião escolher. Entre os dados disponinilizados, três categorias somam 98,3% dos casos: flexível, moderada e longa duração. Como poderá ser visto adiante, essas políticas se relacionam com o tipo de acomodação oferecida. Por exemplo, acomodações completas são propícias para estadias longas, ao passo que estadias simples, como quartos, são ideais para estadias curtas de poucos dias.
+
+```{r, echo=FALSE}
+dados %>% 
+        count(cancellation_policy, name = 'N') %>% 
+        mutate(Prop = round(N/sum(N), digits = 3)*100) %>% 
+        ggplot(aes(x = cancellation_policy, y = Prop, fill = cancellation_policy, label = N)) +
+        geom_col(position = position_dodge()) + 
+        labs(title = "Políticas de cancelamento da reserva",
+             x = "", y = "%") +
+        geom_text(aes(y = Prop), hjust = -0.2, colour = cinza) +
+        scale_x_discrete(labels = c('Flexível', 'Modedada', 'Rigorosa', 'Loga duração',
+                                    'Super rigorosa (30 dias)', 'Super rigorosa (60 dias)')) +
+        scale_fill_brewer(palette = 'Paired') +
+        scale_y_continuous(breaks = seq(0, 100, 5), limits = c(0, 45)) +
+        tema(left = 5) + 
+        coord_flip()
+```
+
+```{r, echo=FALSE}
+d2 <- dados %>% 
+        count(room_type, name = 'N') %>% 
+        mutate(Prop = round(N/sum(N), digits = 3)*100)
+```
+
+#### Tipos de acomodação
+
+Lugares inteiros são a maioria das ofertas presentes na base de dados `r d2$Prop[1]`%, seguido de quartos inteiros `r d2$Prop[2]`%. Quartos compartilhados são apenas `r d2$Prop[3]`%.  
+
+```{r, echo=FALSE}
+dados %>% 
+        count(room_type, name = 'N') %>% 
+        mutate(Prop = round(N/sum(N), digits = 3)*100) %>% 
+        ggplot(aes(x = room_type, y = Prop, fill = room_type, label = N)) +
+        geom_col(position = position_dodge()) + 
+        labs(title = "Tipos de acomodação",
+             x = "", y = "%") +
+        geom_text(aes(y = Prop), vjust = -0.2, colour = cinza) +
+        scale_x_discrete(labels = c('Lugar inteiro', 'Quarto inteiro', 'Quarto compartilhado')) +
+        scale_fill_brewer(palette = 'Paired') +
+        scale_y_continuous(breaks = seq(0, 100, 10), limits = c(0, 70)) +
+        tema(left = 5, legenda = "none")
+
+```
+  
+Quartos compartilhados, pela sua natureza, além de serem minoria na base, são também os mais permissivos quanto à política de cancelamento.  
+
+```{r, echo=FALSE}
+dados %>% 
+        count(room_type, cancellation_policy, name = 'N') %>% 
+        mutate(Prop = round(N/sum(N), digits = 3)*100) %>% 
+        ggplot(aes(x = room_type, y = Prop, fill = cancellation_policy, label = N)) +
+        geom_col(position = position_fill(), col = "white") + 
+        labs(title = "Políticas de cancelamento por tipos de acomodação",
+             x = "", y = "%") +
+        # geom_text(aes(y = Prop), vjust = -0.2, colour = cinza) +
+        scale_x_discrete(labels = c('Lugar inteiro', 'Quarto inteiro', 'Quarto compartilhado')) +
+        scale_fill_discrete(labels = c('Flexível', 'Modedada', 'Rigorosa', 'Loga duração',
+                                       'Super rigorosa (30 dias)', 'Super rigorosa (60 dias)')) +
+        # scale_y_continuous(breaks = seq(0, 100, 10), limits = c(0, 70)) +
+        tema(left = 5, legenda = "bottom")
+```
+
+#### Mínimo de noites
+
+Outra variável intrinsecamente relacionada com o tipo de acomodação é o número mínimo de noites que o hóspede deve contratar o serviço. Como pode ser visto no boxplot abaixo, 75% das acomodações exigem até 30 dias de tempo mínimo, sendo que a mediana é de quatro dias.
+
+
+```{r, echo=FALSE}
+# tempo mínimo de hospedagem
+dados %>% 
+        select(minimum_nights) %>% 
+        pivot_longer(cols = minimum_nights, names_to = 'variavel', values_to = 'N') %>% 
+        ggplot(aes(y = N, fill = variavel)) +
+        geom_boxplot() + 
+        labs(title = "Boxplot do tempo mínimo de hospedagem (noites)",
+             x = "", y = "N") + 
+        scale_x_discrete(labels = c('Mínimo de noites')) + 
+        scale_y_continuous(breaks = seq(0, 400, 20)) +
+        tema() + 
+        theme(axis.text.x = element_text())
+
+```
+
+## Infraestrutura da hospedagem
+Os dados de infraestrutura também são importantes para avaliar as diferenças entre as acomodações oferecidas. Uma das variáveis disponíveis, tipo de cama (`dados$bed_type`), varia pouco (99% das camas são do tipo 'cama de verdade', ou 'real bed'), e portanto não será considerada na análise.
+
+Por outro lado, os números de cômodos (banheiros e quartos) e de camas, bem como o número máximo de hóspedes, variam entre as hospedagens. O boxplot abaixo apresenta a distribuição de cada uma dessas variáveis: é possível perceber que há uma concentração em valores pequenos e a presença de *outliers*.
+
+```{r, echo=FALSE, warning=FALSE}
+dados %>% 
+        select(accommodates:beds) %>% 
+        pivot_longer(cols = 1:4, names_to = 'variavel', values_to = 'N') %>% 
+        ggplot(aes(x = variavel, y = N, fill = variavel)) +
+        geom_boxplot() +
+        labs(title = "Infraestrutura da hospedagem",
+             x = "", y = "") +
+        scale_x_discrete(labels = c('Hóspedes', 'Banheiros', 'Quartos', 'Camas')) +
+        scale_fill_brewer(palette = 'Paired') +
+        scale_y_continuous(breaks = seq(0, 100, 1), limits = c(0, 15)) +
+        tema(left = 5) +
+        theme(legend.position = 'none')
+```
+
+### Avaliações
+
+O número total de avaliações por hospedagem, o valor final da avaliação e valores das avaliações por item também possuem uma forte concentração: a maioria das hospedagens possui poucas ou nenhuma avaliação, e são também, em sua maioria, muito bem avaliadas (médias acima de 9,5), conforme pode ser visto nos histogramas abaixo.
+
+```{r, echo=FALSE}
+dados %>% 
+        select(review_scores_accuracy, review_scores_cleanliness, review_scores_checkin,
+               review_scores_communication, review_scores_location, review_scores_value) %>% 
+        pivot_longer(cols = 1:6, names_to = 'variavel', values_to = 'N') %>% 
+        ggplot(aes(x = N, fill = N)) + 
+        geom_histogram(binwidth = 1) + 
+        labs(title = "Histogramas das avaliações específicas",
+             x = "nota", y = "") +
+        facet_wrap(~ variavel) +
+        scale_x_continuous(breaks = seq(0, 10, 1)) + 
+        tema(bottom = 3)
+```
+
+```{r, echo=FALSE}
+média = round(mean(dados$number_of_reviews), digits = 1)
+mediana = median(dados$number_of_reviews)
+```
+
+
+A maioria das hospedagens possui poucas avaliações: a média é de `r média` avaliações e a mediana é de `r mediana`. O histograma e o boxplot abaixo mostram essa concentração e permitem verificar também que há *outliers* na variável
+
+```{r, echo=FALSE}
+g1 <- dados %>% 
+        select(number_of_reviews) %>% 
+        pivot_longer(cols = 1, names_to = 'variavel', values_to = 'N') %>%
+        ggplot(aes(x = N)) + 
+        geom_histogram(col = "white", fill = "gray25", binwidth = 10) + 
+        labs(title = "Histograma do número de avaliações",
+             x = "", y = "") +
+        scale_x_continuous(breaks = seq(0, 800, 100)) +
+        scale_y_continuous(breaks = seq(0, 3000, 200)) +
+        tema()
+
+g2 <- dados %>% 
+        select(number_of_reviews) %>% 
+        pivot_longer(cols = 1, names_to = 'variavel', values_to = 'N') %>%
+        ggplot(aes(x = variavel, y = N, fill = variavel)) + 
+        geom_boxplot() + 
+        labs(title = "Boxplot do número de avaliações",
+             x = "", y = "") + 
+        scale_y_continuous(breaks = seq(0, 700, 50)) +
+        tema()
+
+gridExtra::grid.arrange(g1, g2, ncol = 2)
+```
+
+```{r, echo=FALSE}
+média = round(mean(dados$price), digits = 1)
+mediana = median(dados$price)
+maximo = max(dados$price)
+```
+
+
+Comportamento semelhante aos dos preços praticados. O valor médio das hospedagens é U\$`r média`, mas há hospedagens que cobram U\$10.000.
+
+```{r, echo=FALSE}
+g3 <- dados %>% 
+        ggplot(aes(x = price)) + 
+        geom_histogram(binwidth = 100, col = "white") +
+        labs(title = "Histograma de preços",
+             x = "preço", y = "") + 
+        tema()
+
+
+g4 <- dados %>% 
+        select(price) %>% 
+        pivot_longer(cols = 1, names_to = "variavel", values_to = "N") %>% 
+        ggplot(aes(x = variavel, y = N, fill = variavel)) +
+        geom_boxplot() + 
+        labs(title = "Boxplot de preços",
+             x = "", y = "preço") + 
+        tema()
+
+gridExtra::grid.arrange(g3, g4, ncol = 2)
+```
+
+## O que diferencia 'Superhosts' dos anfitriões comuns?
+
+As análises a seguir sugerem que superhosts possuem mais e melhores avaliações do que anfitriões comuns. 
+
+```{r, echo=FALSE}
+dados %>% 
+        mutate(host_is_superhost = as.factor(host_is_superhost)) %>% 
+        ggplot(aes(x = number_of_reviews, y = review_scores_rating)) + 
+        geom_point(aes(colour = host_is_superhost), alpha = 0.5) + 
+        labs(title = "Número total e valor geral das avaliações, por tipo de anfitrião",
+             x = "número de avaliações", y = "avaliação geral") + 
+        scale_colour_discrete(labels = c("Não", "Sim"), name = "Anfitrião é 'superhost'") + 
+        tema(legenda = "bottom")
+```
+
+Como como pode ser visto a seguir, a maioria dos superhosts pratica preços abaixo da média (U\$`r média`).
+
+```{r, echo=FALSE}
+dados %>% 
+        mutate(priceQ = ntile(price, 10),
+               host_is_superhost = as.factor(host_is_superhost)) %>% 
+        filter(priceQ != 10) %>% 
+        ggplot(aes(x = price, y = number_of_reviews)) + 
+        geom_point(aes(colour = host_is_superhost), alpha = 0.5) + 
+        labs(title = "Preço e número de avaliações, por tipo de anfitrião",
+             x = "preço", y = "número de avaliações") + 
+        scale_colour_discrete(labels = c("Não", "Sim"), name = "Anfitrião é 'superhost'") + 
+        tema(legenda = "bottom")
+```
+
+## Avaliações e preços
+
+As hospedagens com maior número de avaliações são aquelas com menor preço. Ao mesmo tempo, as hospedagens com avaliações mais baixas são majoritariamente as mais baratas.
+
+```{r, echo=FALSE}
+dados %>% 
+        select(price, number_of_reviews, review_scores_rating) %>%
+        mutate(priceQ = ntile(price, 10)) %>% 
+        filter(priceQ != 10) %>% 
+        ggplot(aes(x = price, y = review_scores_rating)) + 
+        geom_point(aes(colour = number_of_reviews, size = number_of_reviews), alpha = 0.5) +
+        labs(title = "Preço da acomodação pela avaliação geral e pelo número de avaliações",
+             x = "preço", y = "avaliação geral") + 
+        scale_color_gradient(low = "blue", high = "red", name = "Número de avaliações") + 
+        scale_size_continuous(name = "Número de avaliações") +
+        tema(bottom = 3, legenda = "right")
+```
+
+
+# Predição
+
+Sabendo como as variáveis se comportam, de maneira geral, podemos agora empreender uma análise preditiva. Proponho aqui dois modelos gerais:  
+*Avaliação geral como variável dependente (resposta);
+*Preço como variável dependente (resposta).  
+
+O primeiro modelo geral foi gerado inicialmente com todas as variáveis como independentes (explicativas). O objetivo dessa etapa é o de identificar quais variáveis possuem significância na explicação das variações na avaliação geral. Nesse modelo, as variáveis 'price', 'host_is_superhost', 'property_type', 'cancellation_policy', 'room_type', 'bath_rooms', 'bed_rooms', 'beds', 'minimum_nights' e 'number_of_reviews' apresentaram significância.  
+
+```{r, echo=FALSE}
+modelo <- dados %>% 
+        mutate(host_is_superhost = as.factor(host_is_superhost),
+               instant_bookable = as.factor(instant_bookable))
+
+
+modelo2 <- lm(review_scores_rating ~ price + host_is_superhost + room_type + 
+                      bathrooms + bedrooms + beds + minimum_nights + number_of_reviews, 
+               data = modelo)
+
+
+```
+Assim, gerou-se um novo modelo apenas com essas variáveis. O resultado está apresentado no quadro abaixo. O resultado geral do modelo, embora significativo, é pouco satisfatório na sua capacidade explicativa. O valor de R2 ajustado (0,06119) indica uma capacidade explicativa do modelo pequena. Ou seja, as notas finais das hospedagens são explicadas por fatores outros, certamente aqueles que possuem avaliações específicas: limpeza, serviço de checkin, localização, comunicação etc.  
+
+
+```{r, echo=TRUE}
+summary(modelo2)
+
+```
+
+O segundo modelo geral proposto foi construído para predizer o preço do imóvel a partir das demais variáveis. Como feito anteriormente, primeiro gerou-se um modelo com todas as variáveis para determinar quais possuem significância. A seguir, apresenta-se o resultado do modelo com as variáveis 'review_scores_rating', 'room_type', 'accommodates', 'bathrooms', 'bedrooms', 'minimum_nights' e 'number_of_reviews'.
+
+```{r, echo=FALSE}
+modelo4 <- lm(price ~ review_scores_rating + room_type + accommodates + bathrooms + 
+                      bedrooms + minimum_nights + number_of_reviews, 
+              data = modelo)
+
+modelo$predito_modelo4 <- predict(modelo4, newdata = modelo)
+```
+
+O modelo indica que acomodações de tipo 'quarto privado' e 'quarto compartilhado' são mais baratas que acomodações de tipo 'lugar inteiro' (coeficiente negativo). O mesmo ocorre com o número mínimo de noites  e com o número de avaliações.  
+
+Por outro lado, os preços tendem a subir quanto maiores forem as notas, o número máximo de hóspedes, de banheiros e de quartos. Naturalmente, locais maiores tendem a ser mais caros (o que é esperado), da mesma forma que os locais mais bem avaliados tendem a ser mais procurados, o que contribui para elevar os preços.  
+
+Esse modelo possui uma capacidade explicativa razoável. O R2 ajustado de 0,1677 indica que o modelo explica 16,7% das variações de preços.
+
+```{r, echo=TRUE}
+summary(modelo4)
+```
+
+Os resultados, no entanto, não foram muito satisfatórios. Calculando os valores preditos e comparando-os com os valores originais, percebe-se que há diferenças significativas entre os valores, indicando que o modelo utilizado não é capaz de explicar adequadamente as variações nos preços. O MSE (erro quadrático médio) do modelo é de 283, um valor muito alto.
+
+```{r}
+modelo %>% select(price, predito_modelo4) %>% head(15)
+```
+
+# Conclusões
+
+Os modelos propostos não foram capazes de explicar as variações das avaliações gerais e dos preços das hospedagens. Seria preciso pensar outros modelos, com diferentes combinações de variáveis, para investigar se é possível predizer os valores de avaliação e preço a partir das variáveis presentes na base ou se seria necessário obter outras variáveis para isso.

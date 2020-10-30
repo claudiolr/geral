@@ -1,0 +1,97 @@
+---
+title: "Teste de conhecimento Cinnecta"
+author: "Claudio Resende"
+date: "09/10/2020"
+output:
+  pdf_document: default
+  html_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+require(tidyverse)
+require(lubridate)
+require(data.table)
+require(corrplot)
+require(car)
+require(knitr)
+require(tinytex)
+
+
+# Carrega a base
+airbnb <- fread("C:/Users/Claudio/OneDrive/Documentos/ProcessosSeletivos/Cinnecta/airbnb.csv")
+
+
+# Personaliza o tema dos gráficos
+extrafont::loadfonts(device = "win", quiet = FALSE) # carrega fontes do windows
+
+cinza <- "#4d4d4d" # padroniza a cor dos textos dos gráficos
+
+
+# função para denifir padrões de tema dos gráficos do ggplot
+tema <- function(top = 3, right = 5, bottom = -3, left = 5, legenda = "none"){
+        theme(text = element_text(colour = cinza),
+              plot.title = element_text(size = 12, hjust = 0.5),
+              plot.subtitle = element_text(size = 11, hjust = 0.5),
+              axis.ticks = element_blank(),
+              axis.title = element_text(colour = "gray40"),
+              axis.text = element_text(size = 10),
+              panel.grid.major.x = element_blank(),
+              panel.grid.minor.x =  element_blank(),
+              panel.grid.minor.y = element_blank(),
+              legend.position = legenda,
+              legend.margin = margin(-2,0,15,0),
+              legend.box.margin = margin(-5,-5,-5,-5),
+              plot.caption.position = "plot",
+              legend.text = element_text(size = 9),
+              plot.margin = margin(top, right, bottom, left))
+}
+
+
+# Seleção e transformação dos dados -----------------------------------------------------------
+
+# Seleciona as variáveis de interesse (exclui variáveis identificadoras e variáveis '_na')
+dados <- airbnb %>% 
+     select(-c(latitude, longitude, bedrooms_na:review_scores_value_na))
+
+
+# transforma variáveis 'boolean'
+dados <- dados %>% 
+        mutate(host_is_superhost = case_when(host_is_superhost == "t" ~ 1,
+                                             TRUE ~ 0),
+               instant_bookable = case_when(instant_bookable == "t" ~ 1,
+                                             TRUE ~ 0))
+
+colunasAirBnB = length(airbnb)
+linhasAirBnB = nrow(airbnb)
+colunasDados = length(dados)
+```
+
+# Introdução
+
+Este documento apresenta uma análise descritiva e preditiva de dados de acomodações do AirBnB. A base de dados fornecida contém `r colunasAirBnB` variáveis (colunas) e `r linhasAirBnB` observações (linhas).  
+
+Para a análise aqui realizada foram selecionadas `r colunasDados` colunas: foram excluídas colunas identificadoras da acomodação, como latitude e longitude, e as colunas *booleanas* relacionadas às avaliações (colunas '_na').  
+
+A primeira parte da análise consiste em explorar as variáveis para identificar eventuais padrões, tendências, vieses e outros tipos de comportamento dos dados que possam requerer transformações. Em seguida, são propostos modelos estatísticos para analisar a relação entre as variáveis.
+
+
+## Análise descritiva/exploratória
+
+A seguir as variáveis da base de dados são analisadas individualmente e, em seguinda, em combinação com uma ou duas outras variáveis.
+
+```{r, echo=FALSE}
+
+d1 <- dados %>% 
+        # transforma variável em categórica (factor)
+        mutate(host_is_superhost = as.factor(host_is_superhost)) %>%
+        count(host_is_superhost, name = 'N') %>% # conta valores
+        mutate(Prop = round(N/sum(N), digits = 3)*100)
+
+```
+
+
+
+#### Anfitrião
+O tipo de anfitrião é uma variável importante nos serviços oferecidos pelo AirBnB porque indicam o nível de experiência do anfitrião e a qualidade do serviço prestado. A base de dados analisada está distribuída em `r d1$Prop[1]`% e `r d1$Prop[2]`% para anfitriões comuns (host) e superanfitriões (superhost), respectivamente.
+

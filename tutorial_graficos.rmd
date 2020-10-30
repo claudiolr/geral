@@ -1,0 +1,52 @@
+---
+title: "Tutorial pessoal para gráficos usando o ggplot"
+output: html_document
+---
+Esse é um tutorial que eu criei pra mim mesmo e serve para ajudar no dia a dia de elaboração de gráficos,  
+Mas você pode usar, se quiser.
+
+
+Para a criação dos gráficos foi utilizada a base de dados de acidentes automotivos fornecida 
+pela [Polícia Rodoviária Federal](https://arquivos.prf.gov.br/arquivos/index.php/s/kRBUylqz6DyQznN),
+na seção de dados abertos.
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+require(tidyverse)
+require(lubridate)
+
+base <- read.csv(file = "D:\\CienciaDados\\Bases\\Datatran\\datatran2019.csv",
+                 sep = ";", dec = ",")
+
+dados <- base %>% 
+        mutate(data_inversa = as.Date(data_inversa))
+```
+
+## Sem tratamento prévio de dados
+
+O gráfico abaixo foi gerado sem a realização de tratamentos prévios nos dados.
+Aqui também não foram adicionados elementos ao gráfico.
+
+#### geom_bar()
+```{r ,echo=TRUE}
+dados %>% 
+        ggplot(aes(x = fase_dia)) + 
+        geom_bar()
+```
+
+
+Para adicionar os valores das colunas, basta utilizar a função geom_test() e inserir
+os parâmetros conforme abaixo.
+
+
+```{r, echo=TRUE}
+dados %>% 
+        ggplot(aes(x = fase_dia)) + 
+        geom_bar() +
+        geom_text(aes(label =..count..), stat = "count", vjust = -0.2, size = 3)
+```
+
+
+
